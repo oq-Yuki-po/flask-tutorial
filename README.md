@@ -7,7 +7,7 @@
 
 ### 前回まで
 
-[Python ✖︎ Flask ✖︎ Web アプリ（２）HTML の表示とメソッドとパラメータの受け取りかた](https://qiita.com/penpenta/items/c73c974f302c3453bbec)
+chapter_002 ブランチ参照
 
 ### Docker 環境準備
 
@@ -189,11 +189,11 @@ create database flask_tutorial;
 
 pgadmin4 にログイン
 `Servers`を右クリック
-`Servers`>`作成`>`サーバ...` を選択すると以下が表示されるので設定していく
+`Servers`>`作成`>`サーバ...` を選択すると以下が表示されるので設定していく
 
 #### ポイント
 
-`ホスト名/アドレス` はホストの IP アドレスを調べて入力すること
+`ホスト名/アドレス` はホストの IP アドレスを調べて入力すること
 
 ### DB 確認
 
