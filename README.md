@@ -1,4 +1,10 @@
-# 環境準備
+# 目的
+
+- Python と Flask を使用して Web アプリの作成
+- 普段の勉強のアウトプットに書いてみる
+- Hello World が表示できたら OK
+
+## 環境準備
 
 - python の ver 確認
 
@@ -7,7 +13,22 @@ $ python -V
 Python 3.6.5
 ```
 
+- フォルダ構成
+
+```bash
+$ tree
+.
+├── README.md
+├── requirements.txt
+└── src
+    └── main.py
+```
+
 - `requirements.txt`を使用して flask をインストール
+
+```text=requirements.txt
+flask
+```
 
 ```bash
 $ pip install -r requirements.txt
