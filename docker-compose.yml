@@ -1,0 +1,49 @@
+version: "3"
+
+services:
+
+  postgresql:
+    # イメージの指定
+    image: postgres:10.5
+    # コンテナの名前
+    container_name: flask_tutorial_postgresql
+    # hostのport5432とコンテナのport5432を繋ぐ
+    # ホスト；コンテナ
+    ports:
+      - 5432:5432
+    # hostとコンテナで共有するファイルを設定
+    # ホストのディレクトリ；コンテナのディレクトリ
+    volumes:
+      # /docker-entrypoint-initdb.dはコンテナ初回起動時に実行されるスクリプトを置く場所
+      - ./postgresql/init/:/docker-entrypoint-initdb.d
+      # /var/lib/postgresql/dataはpostgresqlのデータが保存されている場所
+      - ./postgresql/data/:/var/lib/postgresql/data
+    # コンテナの環境変数設定
+    environment:
+      # スーパユーザ名(省略時は"postgres")
+      POSTGRES_USER: ${POSTGRES_USER}
+      # スーパユーザのパスワード(省略時はパスワードなしでログイン可)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # postgresqlの初期化時の文字コード
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    # ホスト名
+    hostname: postgres
+    # Dockerを実行するユーザ
+    user: root
+    environment:
+      TZ: "Asia/Tokyo"
+    
+  pgadmin4:
+    image: dpage/pgadmin4:3.3
+    container_name: flask_tutorial_pgadmin4
+    ports:
+      - 80:80
+    volumes:
+      - ./pgadmin:/var/lib/pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    depends_on:
+          - postgresql
+    hostname: pgadmin4
+  

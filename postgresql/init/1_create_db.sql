@@ -1,0 +1,1 @@
+create database flask_tutorial;
