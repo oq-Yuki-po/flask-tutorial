@@ -1,25 +1,38 @@
-from flask import Flask, render_template, request
+from flask import Flask, request, render_template
+from UserModel import User
+from setting import session
+from sqlalchemy import *
+from sqlalchemy.orm import *
 
 # appという名前でFlaskのインスタンスを作成
 app = Flask(__name__)
 
-@app.route('/<name>')
-def hello_world(name):
-    # urlから直接パラメータを受け取る
-    return render_template("hello.html", name=name, method="URLパラメータ")
+# 登録処理
+@app.route('/', methods=["POST"])
+def register_record():
 
-@app.route('/param', methods=["GET","POST"])
-def hello_world_with_parameter():
-    
-    if request.method == 'POST':
-        # postのパラメータの受け取る
-        name = request.form['name']
+    name = request.form['name']
+
+    session.add(User(name))
+
+    session.commit()
+
+    return render_template("hello.html", name=name, message="登録完了しました！")
+
+# 取得処理
+@app.route('/<name>', methods=["GET"])
+def fetch_record(name):
+
+    db_user = session.query(User.name).\
+        filter(User.name == name).\
+        all()
+
+    if len(db_user) == 0:
+        message = "登録されていません。"
     else:
-        # getのパラメータの受け取る
-        name = request.args.get('name')
+        message = "登録されています。"
 
-    return render_template("hello.html", name=name, method=request.method)
-
+    return render_template("hello.html", name=name, message=message)
 
 if __name__ == '__main__':
     app.run()
