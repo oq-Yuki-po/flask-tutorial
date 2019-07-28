@@ -17,7 +17,7 @@ services:
       # /docker-entrypoint-initdb.dはコンテナ初回起動時に実行されるスクリプトを置く場所
       - ./postgresql/init/:/docker-entrypoint-initdb.d
       # /var/lib/postgresql/dataはpostgresqlのデータが保存されている場所
-      - ./postgresql/data/:/var/lib/postgresql/data
+      - /Users/${USER}/Volumes/flask_tutorial/postgres:/var/lib/postgresql/data
     # コンテナの環境変数設定
     environment:
       # スーパユーザ名(省略時は"postgres")
