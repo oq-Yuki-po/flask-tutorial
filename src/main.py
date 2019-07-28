@@ -20,8 +20,10 @@ def register_record():
     return render_template("hello.html", name=name, message="登録完了しました！")
 
 # 取得処理
-@app.route('/<name>', methods=["GET"])
-def fetch_record(name):
+@app.route('/', methods=["GET"])
+def fetch_record():
+
+    name = request.args.get('name')
 
     db_user = session.query(User.name).\
         filter(User.name == name).\

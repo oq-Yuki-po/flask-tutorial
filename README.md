@@ -1,204 +1,346 @@
 # 目的
 
-- Flask で使用する DB（PostgreSQL） を Docker を使用して準備する
-- DB を pgadmin4 で見れるようにする
+- Flask で Postgresql に接続
+- DB にレコードを登録できること
+- DB からレコードを取得できること
+
+# 本編
 
 ## 環境準備
 
+### python のパッケージを追加
+
+```requirements.txt
+flask
+sqlalchemy
+psycopg2
+```
+
+上記を`pip install -r requirements.txt` でインストール
+
+#### ポイント
+
+[sqlalchemy](https://www.sqlalchemy.org/)は python の ORM ライブラリ（簡単に言うとDB 操作は sqlalchemy が担当するよ）
+
+`psycopg2`は flask と postgresql を繋いでくれる役割
+
+#### <details><summary>インストールしたパッケージを一括でアンインストールする（必要があれば）</summary><div>
+
+- pip でインストールしたパッケージの一覧を取得
+
+```bash
+$ pip freeze > piplist.txt
+```
+
+- 一括でアンインストール
+
+```bash
+$ pip uninstall -y -r piplist.txt
+```
+
+</div></details>
+
 ### 前回まで
 
-chapter_002 ブランチ参照
-
-### Docker 環境準備
-
-Mac の場合
-
-```bash
-  brew cask install docker
-```
-
-ver 確認
-
-```bash
-  $ docker -v
-    Docker version 18.09.1, build 4c52b90
-```
+chapter_003 ブランチ参照
 
 ### フォルダ構成
 
 ```bash
-$ tree
 .
 ├── README.md
 ├── docker-compose.yml
 ├── form.html
-├── pgadmin
 ├── postgresql
-│   ├── data
 │   └── init
-│       └── 1_create_db.sql
+│       ├── 1_create_db.sql
+│       └── 2_create_table.sh
 ├── requirements.txt
-└── src
-    ├── main.py
-    └── templates
-        └── hello.html
-
+├── src
+│   ├── UserModel.py
+│   ├── main.py
+│   ├── setting.py
+│   └── templates
+│       └── hello.html
+└── test.http
 ```
 
-## DB 作成
+## DB接続の準備
 
-### docker-compose.yml の作成
+```setting.py
+from sqlalchemy import *
+from sqlalchemy.orm import *
+from sqlalchemy.ext.declarative import declarative_base
+import psycopg2
 
-```docker-compose.yml
+# postgresqlのDBの設定
+DATABASE = "postgresql://postgres:@192.168.1.19:5432/flask_tutorial"
 
-version: "3"
+# Engineの作成
+ENGINE = create_engine(
+    DATABASE,
+    encoding="utf-8",
+    # TrueにするとSQLが実行される度に出力される
+    echo=True
+)
 
-services:
+# Sessionの作成
+session = scoped_session(
+    # ORM実行時の設定。自動コミットするか、自動反映するなど。
+    sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=ENGINE
+    )
+)
 
-  postgresql:
-    # イメージの指定
-    image: postgres:10.5
-    # コンテナの名前
-    container_name: flask_tutorial_postgresql
-    # hostのport5432とコンテナのport5432を繋ぐ
-    # ホスト；コンテナ
-    ports:
-      - 5432:5432
-    # hostとコンテナで共有するファイルやディレクトリを設定
-    # ホストのディレクトリ；コンテナのディレクトリ
-    volumes:
-      # /docker-entrypoint-initdb.dはコンテナ初回起動時に実行されるスクリプトを置く場所
-      - ./DB/init/:/docker-entrypoint-initdb.d
-      # /var/lib/postgresql/dataはpostgresqlのデータが保存されている場所
-      - /var/lib/:/var/lib/postgresql/data
-    # コンテナの環境変数設定
-    environment:
-      # スーパユーザ名(省略時は"postgres")
-      POSTGRES_USER: ${POSTGRES_USER}
-      # スーパユーザのパスワード(省略時はパスワードなしでログイン可)
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      # postgresqlの初期化時の文字コード
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
-    # ホスト名
-    hostname: postgres
-    # Dockerを実行するユーザ
-    user: root
-    environment:
-      TZ: "Asia/Tokyo"
+# modelで使用する
+Base = declarative_base()
+Base.query = session.query_property()
+```
 
-  pgadmin4:
-    image: dpage/pgadmin4:3.3
-    container_name: flask_tutorial_pgadmin4
-    ports:
-      - 80:80
-    volumes:
-      - ./pgadmin:/var/lib/pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-    depends_on:
-          - postgresql
-    hostname: pgadmin4
+#### ポイント
+- DB の接続先情報  
+  `DATABASE = "postgresql://postgres:@192.168.1.19:5432/flask_tutorial`  
+  `DATABASE = "postgresql://{DBのユーザ}:{DBのパスワード}@{url}:{ポート番号}/{DB名}`  
+  今回のDBは前回用意したDBをそのまま利用  
+  {url}は自分のPCのIPを入力
 
+- Engine 作成
+
+```
+ENGINE = create_engine(
+    DATABASE,
+    encoding="utf-8",
+    # TrueにするとSQLが実行される度に出力される
+    echo=True
+)
+```
+
+Engine はDBにアクセスするための土台なんだと覚えとけば、とりあえずOK
+
+- Session作成
+
+```
+session = scoped_session(
+    # ORM実行時の設定。自動コミットするか、自動反映するなど。
+    sessionmaker(
+        autocommit=False,
+        autoflush=False,
+        bind=ENGINE
+    )
+)
+```
+
+SessionはflaskとDBとのやり取りを全て担当してくれるもの
+
+### データを挿入するテーブルを準備
+
+```2_create_table.sh
+#!/bin/bash
+psql -U postgres -d flask_tutorial << "EOSQL"
+CREATE TABLE users (
+        id SERIAL NOT NULL, 
+        name VARCHAR(200), 
+        created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
+        updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
+        PRIMARY KEY (id)
+);
+EOSQL
+```
+
+```UserModel.py
+from datetime import datetime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import Column, Integer, String, DateTime
+from setting import Base
+from setting import ENGINE
+
+class User(Base):
+    """
+    UserModel
+    """
+
+    __tablename__ = 'users'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200))
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, nullable=False)
+
+    def __init__(self, name):
+        self.name = name
+
+if __name__ == "__main__":
+    Base.metadata.create_all(bind=ENGINE)
 ```
 
 #### ポイント
 
-`${POSTGRES_USER}`や`${POSTGRES_PASSWORD}`の`${}`は変数を表していて
-docker-compose.yml と同じ階層にある`.env` ファイルで変数を指定できる。
+- DBのDockerコンテナを初めて起動した際に、`2_create_table.sh`でUserテーブルを作成する  
+※ DBが一度作成されている場合は、`/Users/${USER}/Volumes/flask_tutorial/postgres`を削除する
+- flask側にDB上に、どんなテーブルがあるのかをsqlarchemyを使用して定義してあげる
 
-.env の例
+### DB 確認
+
+1. コンテナを起動  
 
 ```
-POSTGRES_USER=root
-POSTGRES_PASSWORD=root
-PGADMIN_DEFAULT_EMAIL=root
-PGADMIN_DEFAULT_PASSWORD=root
-```
-
-### コンテナ操作
-
-`docker-compose.yml`があるディレクトリで`docker-compose up -d`実行
-
-コンテナ起動
-
-```bash
 $ docker-compose up -d
-Creating network "first_tutorial_default" with the default driver
+Creating network "flask-tutorial_default" with the default driver
 Creating flask_tutorial_postgresql ... done
 Creating flask_tutorial_pgadmin4   ... done
 ```
 
-コンテナが起動できたか確認
+2. pgadminでUserテーブルが作成されていることを確認
+
+### DB操作準備
+
+```main.py
+
+from flask import Flask, request, render_template
+from UserModel import User
+from setting import session
+from sqlalchemy import *
+from sqlalchemy.orm import *
+
+# appという名前でFlaskのインスタンスを作成
+app = Flask(__name__)
+
+# 登録処理
+@app.route('/', methods=["POST"])
+def register_record():
+
+    name = request.form['name']
+
+    session.add(User(name))
+
+    session.commit()
+
+    return render_template("hello.html", name=name, message="登録完了しました！")
+
+# 取得処理
+@app.route('/', methods=["GET"])
+def fetch_record():
+
+    name = request.args.get('name')
+
+    db_user = session.query(User.name).\
+        filter(User.name == name).\
+        all()
+
+    if len(db_user) == 0:
+        message = "登録されていません。"
+    else:
+        message = "登録されています。"
+
+    return render_template("hello.html", name=name, message=message)
+
+if __name__ == '__main__':
+    app.run()
+
+
+```
+
+#### ポイント
+
+- 操作に必要なものをインポート
+
+  - 操作対象のテーブル
+  - DBの操作を行うのでsessionが必要
+
+```
+from UserModel import User
+from setting import session
+from sqlalchemy import *
+from sqlalchemy.orm import *
+```
+
+- 登録処理
+
+```
+# 登録処理
+@app.route('/', methods=["POST"])
+def register_record():
+
+    name = request.form['name']
+
+    session.add(User(name))
+
+    session.commit()
+
+    return render_template("hello.html", name=name, message="登録完了しました！")
+```
+実際に登録している箇所は以下   
+
+```
+    session.add(User(name))
+
+    session.commit()
+```
+
+`session.add`でINSERT文を実行  
+`session.commit()`コミットしてる
+
+- 取得処理
+
+```
+# 取得処理
+@app.route('/', methods=["GET"])
+def fetch_record():
+
+    name = request.args.get('name')
+
+    db_user = session.query(User.name).\
+        filter(User.name == name).\
+        all()
+
+    if len(db_user) == 0:
+        message = "登録されていません。"
+    else:
+        message = "登録されています。"
+
+    return render_template("hello.html", name=name, message=message)
+```
+
+取得処理は、以下
+
+```
+    db_user = session.query(User.name).\
+        filter(User.name == name).\
+        all()
+```
+
+`session.query(User.name)`で取得したい`テーブル.列名`  
+`filter(User.name == name)`はWHERE句  
+`all()`でクエリを実行
+
+※　今回は単純なSELECT文のみ、テーブル結合などもできるので必要に応じて適宜調べてください。
+
+### DB操作確認
+
+1. コンテナを起動  
 
 ```bash
-$ docker ps -a
-CONTAINER ID        IMAGE                COMMAND                  CREATED             STATUS              PORTS                         NAMES
-487182403fc2        dpage/pgadmin4:3.3   "/entrypoint.sh"         8 seconds ago       Up 6 seconds        0.0.0.0:80->80/tcp, 443/tcp   flask_tutorial_pgadmin4
-1441abbc6c72        postgres:10.5        "docker-entrypoint.s…"   9 seconds ago       Up 7 seconds        0.0.0.0:5432->5432/tcp        flask_tutorial_postgresql
+$ docker-compose up -d
+Creating network "flask-tutorial_default" with the default driver
+Creating flask_tutorial_postgresql ... done
+Creating flask_tutorial_pgadmin4   ... done
 ```
 
-コンテナを落とす
+2. flaskを起動
 
 ```bash
-$ docker-compose down
-Stopping flask_tutorial_pgadmin4 ... done
-Removing flask_tutorial_pgadmin4   ... done
-Removing flask_tutorial_postgresql ... done
-Removing network first_tutorial_default
+$ python src/main.py
+ * Serving Flask app "main" (lazy loading)
+ * Environment: production
+   WARNING: This is a development server. Do not use it in a production deployment.
+   Use a production WSGI server instead.
+ * Debug mode: off
+ * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit)
 ```
 
-### 初回実行スクリプトについて
+3. form.htmlで確認
 
-```1_create_db.sql
-create database flask_tutorial;
-```
+# 次回
 
-#### ポイント
-
-- ファイル名の先頭に数字を入れると、その順番で実行してくれる
-- 今回は単純に`flask_tutorial`という DB を作成しているのみ
-
-## DB 確認
-
-### pgadmin4 にアクセス
-
-```docker-compose.ymlの一部抜粋
-  pgadmin4:
-    image: dpage/pgadmin4:3.3
-    container_name: flask_tutorial_pgadmin4
-    ports:
-      - 80:80
-    volumes:
-      - ./pgadmin:/var/lib/pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-    depends_on:
-          - postgresql
-    hostname: pgadmin4
-```
-
-コンテナ起動を起動した状態で`http://localhost:80`にアクセス
-
-#### ポイント
-
-`Email Address`と`Password`は.env  で設定した値
-
-### サーバ接続
-
-pgadmin4 にログイン
-`Servers`を右クリック
-`Servers`>`作成`>`サーバ...` を選択すると以下が表示されるので設定していく
-
-#### ポイント
-
-`ホスト名/アドレス` はホストの IP アドレスを調べて入力すること
-
-### DB 確認
-
-flask_tutorial という DB が存在していることを確認
-
-## 次回
-
-- flask で DB に接続してみよう
+- nginxのコンテナを使用して静的ページを切り離す
