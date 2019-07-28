@@ -9,6 +9,7 @@ services:
       - 5432:5432
     volumes:
       - ./postgresql/init/:/docker-entrypoint-initdb.d
+      - /Users/${USER}/Volumes/flask_tutorial/postgres:/var/lib/postgresql/data
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
