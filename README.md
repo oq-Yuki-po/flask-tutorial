@@ -1,8 +1,9 @@
-# 目的
+# このシリーズの目的
+- PythonのフレームワークであるFlaskを使用してWebアプリに必要な機能の作成と解説をやります。
+- 普段の勉強のアウトプットとして書いています。質問や指摘は大歓迎です。
 
-- Python と Flask を使用して Web アプリの作成
-- 普段の勉強のアウトプットに書いてみる
-- Hello World が表示できたら OK
+# 今回の目標
+- 『Hello World』をFlaskで出力してみよう！
 
 ## 環境準備
 
@@ -13,7 +14,7 @@ $ python -V
 Python 3.6.5
 ```
 
-- フォルダ構成
+## フォルダ構成
 
 ```bash
 $ tree
@@ -24,9 +25,39 @@ $ tree
     └── main.py
 ```
 
-- `requirements.txt`を使用して flask をインストール
+## flaskのインストール
 
-```text=requirements.txt
+<details><summary>requirements.txtって何？？</summary><div>
+
+python は他の人が作成してくれたパッケージ（便利な機能の集まり）をインストールして使うことができます。    
+その時に使用するのが`pip`と言うパッケージ管理ツールです。  
+今回は、flaskと言うパッケージをインストールしています。  
+ただ単純にインストールする場合は、以下のコマンドを実行すればいいのですが  
+
+```bash
+pip install flask
+```
+
+これだと、沢山のパッケージをインストールしたいときに毎回
+
+```bash
+pip install パッケージ①
+pip install パッケージ②
+pip install パッケージ③
+pip install パッケージ④
+```
+
+と書かないといけません。
+
+これだと大変面倒なので一括でインストールしたい。。。  
+そこで、使用するのが`requirements.txt` です。  
+テキスト形式で開発に必要なパッケージの一覧を保存できます。  
+コマンド`pip install -r requirements.txt`を使用して一括インストールができます。
+
+</div></details>
+
+
+```requirements.txt
 flask
 ```
 
@@ -48,7 +79,7 @@ Installing collected packages: itsdangerous, Werkzeug, MarkupSafe, Jinja2, click
 Successfully installed Jinja2-2.10.1 MarkupSafe-1.1.1 Werkzeug-0.15.4 click-7.0 flask-1.1.1 itsdangerous-1.1.0
 ```
 
-- pip 確認
+インストール確認
 
 ```bash
 $ pip list
@@ -64,7 +95,44 @@ setuptools   39.0.1
 Werkzeug     0.15.4
 ```
 
-- flask の起動
+flaskを使用するのに必要なパッケージをpipが自動でインストールしてくれているので
+flask以外のがインストールされていてもOK!
+
+## ソース解説
+
+```src/main.py
+
+# インストールしたパッケージのインポート
+from flask import Flask
+
+# appという名前でFlaskのインスタンスを作成
+app = Flask(__name__)
+
+# どこのアドレスで実行するか指定
+# 今回は http://127.0.0.1:5000/ にアクセスされたらhello_worldを実行するよ
+@app.route('/')
+def hello_world():
+    
+    message = "Hello World"
+    
+    return message
+
+if __name__ == '__main__':
+    # 作成したappを起動
+    # ここでflaskの起動が始まる
+    app.run()
+```
+
+### ポイント
+- `from flask import Flask`でインストールしたpythonのパッケージを使用できるようにしてる。
+- `app = Flask(__name__)`でFlaskのインスタンスを作成している。
+- `app.run()`でFlaskを起動。
+- `@app.route('/')`以下でアクセスした際の動作を紐付けられる。(今回は`hello_world()`に紐付けている)
+- `if __name__ == '__main__':`は、このファイルが起点としてプログラムが実行されているか判定している。
+
+
+
+## flask の起動
 
 ```bash
 $ python src/main.py
@@ -76,7 +144,15 @@ $ python src/main.py
  * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit)
 ```
 
-- 起動確認 の起動
+- 起動の確認
 
   - <http://127.0.0.1:5000/> にブラウザからアクセス
-  - <http://127.0.0.1:5000/bye> にブラウザからアクセス
+
+
+## アクセスした際の表示
+|<img width="1920" alt="sample.png" src="https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/76de53ee-f5c4-1225-5107-e10ca9712c71.png">|
+|:-:|
+
+
+## 参考
+- [Flask User’s Guide](https://flask.palletsprojects.com/en/1.1.x/)
