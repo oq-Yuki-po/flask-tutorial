@@ -153,6 +153,12 @@ $ python src/main.py
 |<img width="1920" alt="sample.png" src="https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/76de53ee-f5c4-1225-5107-e10ca9712c71.png">|
 |:-:|
 
+## おまけ
+僕の大好きなエディタVSCodeの[REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client)を使用してもok。
+|<img width="1920" alt="sample.png" src="https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/76de53ee-f5c4-1225-5107-e10ca9712c71.png">|
+|:-:|
+
+
 
 ## 参考
 - [Flask User’s Guide](https://flask.palletsprojects.com/en/1.1.x/)
