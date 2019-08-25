@@ -1,12 +1,14 @@
-from flask import Flask, request, render_template
+from flask import Flask, request
 from UserModel import User
 from setting import session
 from sqlalchemy import *
 from sqlalchemy.orm import *
+from flask_cors import CORS
 
 # appという名前でFlaskのインスタンスを作成
 app = Flask(__name__)
-
+CORS(app)
+ 
 # 登録処理
 @app.route('/', methods=["POST"])
 def register_record():
@@ -17,7 +19,9 @@ def register_record():
 
     session.commit()
 
-    return render_template("hello.html", name=name, message="登録完了しました！")
+    message = name + "の登録が完了しました！"
+
+    return message
 
 # 取得処理
 @app.route('/', methods=["GET"])
@@ -30,11 +34,11 @@ def fetch_record():
         all()
 
     if len(db_user) == 0:
-        message = "登録されていません。"
+        message = "は登録されていません。"
     else:
-        message = "登録されています。"
+        message = "は登録されています。"
 
-    return render_template("hello.html", name=name, message=message)
+    return name + message
 
 if __name__ == '__main__':
     app.run()
