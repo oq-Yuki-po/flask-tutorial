@@ -1,56 +1,29 @@
 # 目的
 
-- Flask で Postgresql に接続
-- DB にレコードを登録できること
-- DB からレコードを取得できること
+- nginxで静的なコンテンツを分離してみる
+- flaskに非同期通信してみる
 
 # 本編
 
-## 環境準備
-
-### python のパッケージを追加
-
-```requirements.txt
-flask
-sqlalchemy
-psycopg2
-```
-
-上記を`pip install -r requirements.txt` でインストール
-
-#### ポイント
-
-[sqlalchemy](https://www.sqlalchemy.org/)は python の ORM ライブラリ（簡単に言うとDB 操作は sqlalchemy が担当するよ）
-
-`psycopg2`は flask と postgresql を繋いでくれる役割
-
-#### <details><summary>インストールしたパッケージを一括でアンインストールする（必要があれば）</summary><div>
-
-- pip でインストールしたパッケージの一覧を取得
-
-```bash
-$ pip freeze > piplist.txt
-```
-
-- 一括でアンインストール
-
-```bash
-$ pip uninstall -y -r piplist.txt
-```
-
-</div></details>
-
 ### 前回まで
-
-chapter_003 ブランチ参照
+chapter_004参照
 
 ### フォルダ構成
 
 ```bash
 .
 ├── README.md
+├── client
+│   ├── css
+│   │   └── index.css
+│   ├── html
+│   │   └── index.html
+│   └── js
+│       └── index.js
 ├── docker-compose.yml
-├── form.html
+├── nginx
+│   ├── Dockerfile
+│   └── nginx.conf
 ├── postgresql
 │   └── init
 │       ├── 1_create_db.sql
@@ -58,289 +31,222 @@ chapter_003 ブランチ参照
 ├── requirements.txt
 ├── src
 │   ├── UserModel.py
+│   ├── __pycache__
+│   │   ├── UserModel.cpython-36.pyc
+│   │   └── setting.cpython-36.pyc
 │   ├── main.py
-│   ├── setting.py
-│   └── templates
-│       └── hello.html
+│   └── setting.py
 └── test.http
 ```
 
-## DB接続の準備
-
-```setting.py
-from sqlalchemy import *
-from sqlalchemy.orm import *
-from sqlalchemy.ext.declarative import declarative_base
-import psycopg2
-
-# postgresqlのDBの設定
-DATABASE = "postgresql://postgres:@192.168.1.19:5432/flask_tutorial"
-
-# Engineの作成
-ENGINE = create_engine(
-    DATABASE,
-    encoding="utf-8",
-    # TrueにするとSQLが実行される度に出力される
-    echo=True
-)
-
-# Sessionの作成
-session = scoped_session(
-    # ORM実行時の設定。自動コミットするか、自動反映するなど。
-    sessionmaker(
-        autocommit=False,
-        autoflush=False,
-        bind=ENGINE
-    )
-)
-
-# modelで使用する
-Base = declarative_base()
-Base.query = session.query_property()
-```
-
-#### ポイント
-- DB の接続先情報  
-  `DATABASE = "postgresql://postgres:@192.168.1.19:5432/flask_tutorial`  
-  `DATABASE = "postgresql://{DBのユーザ}:{DBのパスワード}@{url}:{ポート番号}/{DB名}`  
-  今回のDBは前回用意したDBをそのまま利用  
-  {url}は自分のPCのIPを入力
-
-- Engine 作成
-
-```
-ENGINE = create_engine(
-    DATABASE,
-    encoding="utf-8",
-    # TrueにするとSQLが実行される度に出力される
-    echo=True
-)
-```
-
-Engine はDBにアクセスするための土台なんだと覚えとけば、とりあえずOK
-
-- Session作成
-
-```
-session = scoped_session(
-    # ORM実行時の設定。自動コミットするか、自動反映するなど。
-    sessionmaker(
-        autocommit=False,
-        autoflush=False,
-        bind=ENGINE
-    )
-)
-```
-
-SessionはflaskとDBとのやり取りを全て担当してくれるもの
-
-### データを挿入するテーブルを準備
-
-```2_create_table.sh
-#!/bin/bash
-psql -U postgres -d flask_tutorial << "EOSQL"
-CREATE TABLE users (
-        id SERIAL NOT NULL, 
-        name VARCHAR(200), 
-        created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
-        updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL, 
-        PRIMARY KEY (id)
-);
-EOSQL
-```
-
-```UserModel.py
-from datetime import datetime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, DateTime
-from setting import Base
-from setting import ENGINE
-
-class User(Base):
-    """
-    UserModel
-    """
-
-    __tablename__ = 'users'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(200))
-    created_at = Column(DateTime, default=datetime.now, nullable=False)
-    updated_at = Column(DateTime, default=datetime.now, nullable=False)
-
-    def __init__(self, name):
-        self.name = name
-
-if __name__ == "__main__":
-    Base.metadata.create_all(bind=ENGINE)
-```
-
-#### ポイント
-
-- DBのDockerコンテナを初めて起動した際に、`2_create_table.sh`でUserテーブルを作成する  
-※ DBが一度作成されている場合は、`/Users/${USER}/Volumes/flask_tutorial/postgres`を削除する
-- flask側にDB上に、どんなテーブルがあるのかをsqlarchemyを使用して定義してあげる
-
-### DB 確認
-
-1. コンテナを起動  
-
-```
-$ docker-compose up -d
-Creating network "flask-tutorial_default" with the default driver
-Creating flask_tutorial_postgresql ... done
-Creating flask_tutorial_pgadmin4   ... done
-```
-
-2. pgadminでUserテーブルが作成されていることを確認
-
-### DB操作準備
-
-```main.py
-
-from flask import Flask, request, render_template
-from UserModel import User
-from setting import session
-from sqlalchemy import *
-from sqlalchemy.orm import *
-
-# appという名前でFlaskのインスタンスを作成
-app = Flask(__name__)
-
-# 登録処理
-@app.route('/', methods=["POST"])
-def register_record():
-
-    name = request.form['name']
-
-    session.add(User(name))
-
-    session.commit()
-
-    return render_template("hello.html", name=name, message="登録完了しました！")
-
-# 取得処理
-@app.route('/', methods=["GET"])
-def fetch_record():
-
-    name = request.args.get('name')
-
-    db_user = session.query(User.name).\
-        filter(User.name == name).\
-        all()
-
-    if len(db_user) == 0:
-        message = "登録されていません。"
-    else:
-        message = "登録されています。"
-
-    return render_template("hello.html", name=name, message=message)
-
-if __name__ == '__main__':
-    app.run()
-
-
-```
-
-#### ポイント
-
-- 操作に必要なものをインポート
-
-  - 操作対象のテーブル
-  - DBの操作を行うのでsessionが必要
-
-```
-from UserModel import User
-from setting import session
-from sqlalchemy import *
-from sqlalchemy.orm import *
-```
-
-- 登録処理
-
-```
-# 登録処理
-@app.route('/', methods=["POST"])
-def register_record():
-
-    name = request.form['name']
-
-    session.add(User(name))
-
-    session.commit()
-
-    return render_template("hello.html", name=name, message="登録完了しました！")
-```
-実際に登録している箇所は以下   
-
-```
-    session.add(User(name))
-
-    session.commit()
-```
-
-`session.add`でINSERT文を実行  
-`session.commit()`コミットしてる
-
-- 取得処理
-
-```
-# 取得処理
-@app.route('/', methods=["GET"])
-def fetch_record():
-
-    name = request.args.get('name')
-
-    db_user = session.query(User.name).\
-        filter(User.name == name).\
-        all()
-
-    if len(db_user) == 0:
-        message = "登録されていません。"
-    else:
-        message = "登録されています。"
-
-    return render_template("hello.html", name=name, message=message)
-```
-
-取得処理は、以下
-
-```
-    db_user = session.query(User.name).\
-        filter(User.name == name).\
-        all()
-```
-
-`session.query(User.name)`で取得したい`テーブル.列名`  
-`filter(User.name == name)`はWHERE句  
-`all()`でクエリを実行
-
-※　今回は単純なSELECT文のみ、テーブル結合などもできるので必要に応じて適宜調べてください。
-
-### DB操作確認
-
-1. コンテナを起動  
+### 編集or追加分
 
 ```bash
-$ docker-compose up -d
-Creating network "flask-tutorial_default" with the default driver
-Creating flask_tutorial_postgresql ... done
-Creating flask_tutorial_pgadmin4   ... done
+.
+├── README.md
+├── client
+│   ├── css
+│   │   └── index.css
+│   ├── html
+│   │   └── index.html
+│   └── js
+│       └── index.js
+├── docker-compose.yml
+├── nginx
+│   ├── Dockerfile
+│   └── nginx.conf
+└── requirements.txt
+
 ```
 
-2. flaskを起動
 
-```bash
-$ python src/main.py
- * Serving Flask app "main" (lazy loading)
- * Environment: production
-   WARNING: This is a development server. Do not use it in a production deployment.
-   Use a production WSGI server instead.
- * Debug mode: off
- * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit)
+### nignxって何？？ 
+
+![20171026000347.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/ac41907f-f218-758a-635f-b9696ed3b5aa.png)
+
+説明をすると本筋から外れてしまいそうなので、ざっくりと知っておいて欲しいことを並べておく
+
+* エンジンエックスって読むよ
+* フリーかつオープンソースなWebサーバ
+* 今回は静的なコンテンツ(HTML、画像など)を配信するために使用している
+* 他にも負荷分散の機能とかがあるよ
+* よく比較されるのがApache
+
+#### 使用すると何が嬉しいの？？
+
+今までの記事の構成は下記のようになります。
+<img width="1646" alt="スクリーンショット 2019-08-25 12.14.10.png" src="https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/06a33f09-5ef4-1134-f28a-4dfe6153a2d6.png">
+
+この構成だと、Flaskは大きく分けて2つのタスクを行うことになります。
+
+* ユーザとのやりとりで静的コンテンツの配信
+* アプリケーション内部の処理とDBとのやりとり
+
+静的なコンテツの配信をnginxにお願いすることで、flaskはアプリケーションの内部の実装のみに専念させることができます。
+
+今回の記事の構成は以下の様になります。
+
+<img width="1646" alt="06a33f09-5ef4-1134-f28a-4dfe6153a2d6.png" src="https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/a4902fbd-a85d-2614-0ad8-f9cb1806fe77.png">
+
+### nginxコンテナの準備
+
+nginxを準備していきます。今回はDockerを使用してサクッと終わらせましょう。
+
+dockerfileの準備から始めましょう
+ファイルの中身は
+nginxのイメージを取得して、起動のコマンドを記述しているのみ
+
+```nginx/Dockerfile
+
+FROM nginx
+CMD ["nginx", "-g", "daemon off;", "-c", "/etc/nginx/nginx.conf"]
 ```
 
-3. form.htmlで確認
+nginxの設定ファイルを用意します。
+設定ファイルの書き方は、他のサイトにお願いすることにして
+ここでは、ページの配信に必要な箇所にのみコメントをしてあります。
 
+```nginx/nginx.conf
+
+user  nginx;
+worker_processes  auto;
+
+error_log  /var/log/nginx/error.log warn;
+pid        /var/run/nginx.pid;
+
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+
+    access_log  /var/log/nginx/access.log  main;
+
+    sendfile        on;
+
+    keepalive_timeout  75;
+
+    # サーバの設定
+    server {
+        listen 80;
+        charset utf-8;
+
+        # localhostでアクセスした際に最初に表示されるページを設定
+        location /{
+            root   /var/www/html;
+            index  index.html;
+        }
+
+        # サーバに含めるファイルの拡張子を指定している
+        location ~ .*\.(js|JS|css|CSS)$ {
+        root    /var/www;
+        }
+
+    }
+}
+```
+
+docker-composeを編集します。
+追加したのは、nginxの箇所のみ。
+
+```docker-compose.yml
+version: "3"
+
+services:
+
+  postgresql:
+    image: postgres:10.5
+    container_name: flask_tutorial_postgresql
+    ports:
+      - 5432:5432
+    volumes:
+      - ./postgresql/init/:/docker-entrypoint-initdb.d
+      - /Users/${USER}/Volumes/flask_tutorial/postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+    hostname: postgres
+    user: root
+    environment:
+      TZ: "Asia/Tokyo"
+    
+  pgadmin4:
+    image: dpage/pgadmin4:3.3
+    container_name: flask_tutorial_pgadmin4
+    ports:
+      - 5050:80
+    volumes:
+      - ./pgadmin:/var/lib/pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    depends_on:
+          - postgresql
+    hostname: pgadmin4
+
+  nginx:
+    build: ./nginx
+    container_name: flask_tutorial_nginx
+    volumes:
+      - ./client/:/var/www/
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    ports:
+      - 80:80
+    environment:
+      TZ: "Asia/Tokyo"
+
+```
+
+### 静的コンテンツの準備
+簡単なページを用意してあげました。
+
+```client/html/index.html
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8">
+    <title>flask</title>
+    <link rel="stylesheet" href="../css/index.css">
+  </head>
+  <body>
+    <header class="header" id="float-menu">
+      <h1>Flask Tutorial</h1>
+    </header>
+    <main>
+      <section>
+        <h2>nginxの利用</h2>
+        <p>nginxを静的なコンテンツのWebサーバとして使用しているよ</p>
+        <section>
+            <h2>flaskと通信</h2>
+            <p>ユーザ名</p>
+            <input type="text" id="user_name">
+            <button id="check">確認</button>
+            <button id="register">登録</button>
+            <p id="message"></p>
+      </section>
+    </main>
+    <script type="text/javascript" src="../js/index.js"></script>
+  </body>
+</html>
+```
+
+### コンテナ起動
+ここまで準備ができたら
+
+`docker-compose up -d`でコンテナを立ち上げて
+
+ブラウザ上から`http://localhost/`にアクセス
+
+　
 # 次回
 
-- nginxのコンテナを使用して静的ページを切り離す
+- 非同期通信でflaskに問い合わせをしてみよう
