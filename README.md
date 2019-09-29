@@ -1,11 +1,14 @@
 # 目的
 
-- nginxで静的なコンテンツを分離してみる
+- 非同期通信でflaskに問い合わせをしてみよう
 
 # 本編
 
 ### 前回まで
-chapter_004参照
+[PythonのフレームワークFlaskを使用してWebアプリ作成の物語（5）nginxの登場](https://qiita.com/penpenta/items/d5934ab1cff6d4ca54b2)
+
+前回まではnginxを使用して静的コンテンツの分離を行ってみました。
+今回はJavaScriptを使用して、Webサーバ（flask）にアクセスしてみましょう。
 
 ### フォルダ構成
 
@@ -30,222 +33,151 @@ chapter_004参照
 ├── requirements.txt
 ├── src
 │   ├── UserModel.py
-│   ├── __pycache__
-│   │   ├── UserModel.cpython-36.pyc
-│   │   └── setting.cpython-36.pyc
 │   ├── main.py
 │   └── setting.py
 └── test.http
 ```
 
-### 編集or追加分
+### イメージ図
 
-```bash
-.
-├── README.md
-├── client
-│   ├── css
-│   │   └── index.css
-│   ├── html
-│   │   └── index.html
-│   └── js
-│       └── index.js
-├── docker-compose.yml
-├── nginx
-│   ├── Dockerfile
-│   └── nginx.conf
-└── requirements.txt
+![flask.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/246efd72-91b2-9b00-03fa-ff501e3f38ce.png)
+
+投稿数が多くなってきたので、一旦整理してみます。
+
+まず、サーバは全部で３つあります。
+
+* nginx ・・・ htmlやcssなどの静的コンテンツの置き場所 
+* Flask ・・・ アプリケーションのCRUD処理を担当（データの保存や読み込み）
+* PostgreSQL  ・・・  DBとして使用
+
+FlaskとPostgreSQLの繋ぎ役は`SQLAlchmy`にお願いしています。
+今回の記事では、NginxとFlaskとの繋ぎ役の部分を`JavaScript`で実装していきます。
+
+### Flaskの準備
+
+Flask側の準備からしていきましょう。
+処理は簡単に、登録と取得の処理を実装します。
+単純に、登録と取得の結果を返しているのみです。
+
+```Python
+from flask import Flask, request
+from UserModel import User
+from setting import session
+from sqlalchemy import *
+from sqlalchemy.orm import *
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)
+ 
+# 登録処理
+@app.route('/', methods=["POST"])
+def register_record():
+
+    name = request.form['name']
+
+    session.add(User(name))
+
+    session.commit()
+
+    message = name + "の登録が完了しました！"
+
+    return message
+
+# 取得処理
+@app.route('/', methods=["GET"])
+def fetch_record():
+
+    name = request.args.get('name')
+
+    db_user = session.query(User.name).\
+        filter(User.name == name).\
+        all()
+
+    if len(db_user) == 0:
+        message = "は登録されていません。"
+    else:
+        message = "は登録されています。"
+
+    return name + message
+
+if __name__ == '__main__':
+    app.run()
 
 ```
 
+### 非同期通信の準備（JavaScript）
 
-### nignxって何？？ 
+次にJavaScriptでの非同期通信の実装を行います。
 
-![20171026000347.png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/ac41907f-f218-758a-635f-b9696ed3b5aa.png)
+最初にボタン押下時の関数（`check`と`register`）をそれぞれセットしています。
 
-説明をすると本筋から外れてしまいそうなので、ざっくりと知っておいて欲しいことを並べておく
+ここでのポイントは`XMLHttpRequest`オブジェクトです。
 
-* エンジンエックスって読むよ
-* フリーかつオープンソースなWebサーバ
-* 今回は静的なコンテンツ(HTML、画像など)を配信するために使用している
-* 他にも負荷分散の機能とかがあるよ
-* よく比較されるのがApache
+このオブジェクトは簡単に言うと非同期通を実現させる為に使用しています。
 
-#### 使用すると何が嬉しいの？？
+非同期通信を行うことで、ページ全体を再読み込みさせることなく部分的に更新させることが可能になります。
 
-今までの記事の構成は下記のようになります。
-<img width="1646" alt="スクリーンショット 2019-08-25 12.14.10.png" src="https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/06a33f09-5ef4-1134-f28a-4dfe6153a2d6.png">
+身近な例だとGoogleMapとかがそうです。
 
-この構成だと、Flaskは大きく分けて2つのタスクを行うことになります。
+拡大や縮小をする度に、ページ全体が更新されてたら検索しにくいですよね？？
 
-* ユーザとのやりとりで静的コンテンツの配信
-* アプリケーション内部の処理とDBとのやりとり
+下記の記事で詳しく説明してくれています。
 
-静的なコンテツの配信をnginxにお願いすることで、flaskはアプリケーションの内部の実装のみに専念させることができます。
+https://qiita.com/hisamura333/items/e3ea6ae549eb09b7efb9
 
-今回の記事の構成は以下の様になります。
-
-<img width="1646" alt="06a33f09-5ef4-1134-f28a-4dfe6153a2d6.png" src="https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/a4902fbd-a85d-2614-0ad8-f9cb1806fe77.png">
-
-### nginxコンテナの準備
-
-nginxを準備していきます。今回はDockerを使用してサクッと終わらせましょう。
-
-dockerfileの準備から始めましょう
-ファイルの中身は
-nginxのイメージを取得して、起動のコマンドを記述しているのみ
-
-```nginx/Dockerfile
-
-FROM nginx
-CMD ["nginx", "-g", "daemon off;", "-c", "/etc/nginx/nginx.conf"]
-```
-
-nginxの設定ファイルを用意します。
-設定ファイルの書き方は、他のサイトにお願いすることにして
-ここでは、ページの配信に必要な箇所にのみコメントをしてあります。
-
-```nginx/nginx.conf
-
-user  nginx;
-worker_processes  auto;
-
-error_log  /var/log/nginx/error.log warn;
-pid        /var/run/nginx.pid;
+https://developer.mozilla.org/ja/docs/Web/API/XMLHttpRequest
 
 
-events {
-    worker_connections  1024;
+```JavaScript
+document.getElementById('check').onclick = function () {
+    check();
+}
+
+document.getElementById('register').onclick = function () {
+    register();
 }
 
 
-http {
-    include       /etc/nginx/mime.types;
-    default_type  application/octet-stream;
-
-    log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
-                      '$status $body_bytes_sent "$http_referer" '
-                      '"$http_user_agent" "$http_x_forwarded_for"';
-
-    access_log  /var/log/nginx/access.log  main;
-
-    sendfile        on;
-
-    keepalive_timeout  75;
-
-    # サーバの設定
-    server {
-        listen 80;
-        charset utf-8;
-
-        # localhostでアクセスした際に最初に表示されるページを設定
-        location /{
-            root   /var/www/html;
-            index  index.html;
+function check() {
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function () {
+        if (this.readyState == 4 && this.status == 200) {
+            document.getElementById('message').innerText = this.responseText;
         }
+    };
+    const user_name = document.getElementById('user_name').value;
+    // ここのURLはFlask起動時に表示されるURLにすること
+    xhttp.open("GET", `http://127.0.0.1:5000/?name=${user_name}`, true);
+    xhttp.send();
+}
 
-        # サーバに含めるファイルの拡張子を指定している
-        location ~ .*\.(js|JS|css|CSS)$ {
-        root    /var/www;
+function register() {
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function () {
+        if (this.readyState == 4 && this.status == 200) {
+            document.getElementById('message').innerText = this.responseText;
         }
-
-    }
+    };
+    const user_name = document.getElementById('user_name').value;
+    xhttp.open("POST", "http://127.0.0.1:5000/", true);
+    // POSTはURLにパラメータを載せないので、以下のようにやるよ
+    xhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+    xhttp.send(`name=${user_name}`);
 }
 ```
 
-docker-composeを編集します。
-追加したのは、nginxの箇所のみ。
-
-```docker-compose.yml
-version: "3"
-
-services:
-
-  postgresql:
-    image: postgres:10.5
-    container_name: flask_tutorial_postgresql
-    ports:
-      - 5432:5432
-    volumes:
-      - ./postgresql/init/:/docker-entrypoint-initdb.d
-      - /Users/${USER}/Volumes/flask_tutorial/postgres:/var/lib/postgresql/data
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
-    hostname: postgres
-    user: root
-    environment:
-      TZ: "Asia/Tokyo"
-    
-  pgadmin4:
-    image: dpage/pgadmin4:3.3
-    container_name: flask_tutorial_pgadmin4
-    ports:
-      - 5050:80
-    volumes:
-      - ./pgadmin:/var/lib/pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
-    depends_on:
-          - postgresql
-    hostname: pgadmin4
-
-  nginx:
-    build: ./nginx
-    container_name: flask_tutorial_nginx
-    volumes:
-      - ./client/:/var/www/
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-    ports:
-      - 80:80
-    environment:
-      TZ: "Asia/Tokyo"
-
-```
-
-### 静的コンテンツの準備
-簡単なページを用意してあげました。
-
-```client/html/index.html
-<!DOCTYPE html>
-<html lang="ja">
-  <head>
-    <meta charset="UTF-8">
-    <title>flask</title>
-    <link rel="stylesheet" href="../css/index.css">
-  </head>
-  <body>
-    <header class="header" id="float-menu">
-      <h1>Flask Tutorial</h1>
-    </header>
-    <main>
-      <section>
-        <h2>nginxの利用</h2>
-        <p>nginxを静的なコンテンツのWebサーバとして使用しているよ</p>
-        <section>
-            <h2>flaskと通信</h2>
-            <p>ユーザ名</p>
-            <input type="text" id="user_name">
-            <button id="check">確認</button>
-            <button id="register">登録</button>
-            <p id="message"></p>
-      </section>
-    </main>
-    <script type="text/javascript" src="../js/index.js"></script>
-  </body>
-</html>
-```
-
-### コンテナ起動
+### 動作確認
 ここまで準備ができたら
 
-`docker-compose up -d`でコンテナを立ち上げて
+docker-compose up -dでコンテナを立ち上げて
 
-ブラウザ上から`http://localhost/`にアクセス
+falskも起動して、動作を確認してみよう
 
-　
+ブラウザ上から
+http://localhost/
+にアクセス
+
 # 次回
 
-- 非同期通信でflaskに問い合わせをしてみよう
+- flaskをコンテナ化してみよう（uwsgiの利用）
