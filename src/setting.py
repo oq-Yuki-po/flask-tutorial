@@ -4,7 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 import psycopg2
 
 # postgresqlのDBの設定
-DATABASE = "postgresql://postgres:@192.168.1.19:5432/flask_tutorial"
+DATABASE = "postgresql://postgres:@localhost/flask_tutorial"
 
 ENGINE = create_engine(
     DATABASE,
