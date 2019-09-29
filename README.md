@@ -5,7 +5,7 @@
 # 本編
 
 ### 前回まで
-[PythonのフレームワークFlaskを使用してWebアプリ作成の物語（5）nginxの登場](https://qiita.com/penpenta/items/d5934ab1cff6d4ca54b2)
+chapter_005参照
 
 前回まではnginxを使用して静的コンテンツの分離を行ってみました。
 今回はJavaScriptを使用して、Webサーバ（flask）にアクセスしてみましょう。
