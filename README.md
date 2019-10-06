@@ -1,20 +1,27 @@
-# このシリーズの目的
+# 目的
 - PythonのフレームワークであるFlaskを使用してWebアプリに必要な機能の作成と解説をやります。
 - 普段の勉強のアウトプットとして書いています。質問や指摘は大歓迎です。
 
 # 今回の目標
 - 『Hello World』をFlaskで出力してみよう！
 
-## 環境準備
+## 全体像
 
-- python の ver 確認
+今回の全体像を解説していきます。
+手順はシンプルに纏めると以下のようになります。
 
-```bash
-$ python -V
-Python 3.6.5
-```
+1. http://127.0.0.1:5000/ にブラウザからアクセスする
+2. Flaskからメッセージを受信して、それをブラウザに表示する
+
+![chapter_01_001 .png](https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/ee0a3898-adf2-b1f0-b539-80ee4a125f80.png)
+
 
 ## フォルダ構成
+
+今回のフォルダ構成は以下です。
+
+ソースコードはGitHubに上げています。  
+[ここからDLしてね](https://github.com/oq-Yuki-po/flask-tutorial/tree/chapter_001)
 
 ```bash
 $ tree
@@ -25,9 +32,25 @@ $ tree
     └── main.py
 ```
 
-## flaskのインストール
+## 環境準備
 
-<details><summary>requirements.txtって何？？</summary><div>
+環境の準備をしていきます。  
+まずは、Pythonのverを確認しましょう。
+
+### python の ver 確認
+
+```bash
+$ python -V
+Python 3.6.5
+```
+
+次に
+Flaskのインストールです。
+インストールにはrequirements.txtを使用します。
+
+### flaskのインストール
+
+<details><summary>requirements.txtの解説</summary><div>
 
 python は他の人が作成してくれたパッケージ（便利な機能の集まり）をインストールして使うことができます。    
 その時に使用するのが`pip`と言うパッケージ管理ツールです。  
@@ -79,7 +102,7 @@ Installing collected packages: itsdangerous, Werkzeug, MarkupSafe, Jinja2, click
 Successfully installed Jinja2-2.10.1 MarkupSafe-1.1.1 Werkzeug-0.15.4 click-7.0 flask-1.1.1 itsdangerous-1.1.0
 ```
 
-インストール確認
+インストールの確認は`pip list`で行います
 
 ```bash
 $ pip list
@@ -128,6 +151,7 @@ if __name__ == '__main__':
 - `app = Flask(__name__)`でFlaskのインスタンスを作成している。
 - `app.run()`でFlaskを起動。
 - `@app.route('/')`以下でアクセスした際の動作を紐付けられる。(今回は`hello_world()`に紐付けている)
+- URLと動作の紐付けをルーティングと言うよ
 - `if __name__ == '__main__':`は、このファイルが起点としてプログラムが実行されているか判定している。
 
 
@@ -150,14 +174,11 @@ $ python src/main.py
 
 
 ## アクセスした際の表示
-|<img width="1920" alt="sample.png" src="https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/76de53ee-f5c4-1225-5107-e10ca9712c71.png">|
-|:-:|
+<img width="1920" alt="sample.png" src="https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/76de53ee-f5c4-1225-5107-e10ca9712c71.png">
 
 ## おまけ
 僕の大好きなエディタVSCodeの[REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client)を使用してもok。
-|<img width="1920" alt="sample.png" src="https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/76de53ee-f5c4-1225-5107-e10ca9712c71.png">|
-|:-:|
-
+<img width="1916" alt="スクリーンショット 2019-08-24 23.45.11.png" src="https://qiita-image-store.s3.ap-northeast-1.amazonaws.com/0/190554/23e92eae-343b-1980-5e35-6c37514072cb.png">
 
 
 ## 参考
